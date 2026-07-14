@@ -47,16 +47,21 @@ h2 { font-size: 18px; }
 .kpiGrid span { color: var(--muted); }
 .kpiGrid strong { font-size: 28px; }
 
-.schedulePanel { padding: 18px; display: grid; gap: 14px; }
-.fixedInfoGrid { display: grid; grid-template-columns: 170px minmax(260px, 1fr) 140px; gap: 10px; }
+.schedulePanel { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 10px 14px; padding: 12px 14px; }
+.schedulePanel .sectionTitle { align-items: center; margin-bottom: 0; }
+.schedulePanel .sectionTitle h2 { font-size: 16px; }
+.fixedInfoGrid { display: grid; grid-template-columns: 130px minmax(220px, 1fr) 110px; gap: 8px; }
 .infoGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .infoGrid p, .fixedInfoGrid p, .rightPanel p { margin: 0; padding: 12px; background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; }
+.fixedInfoGrid p { min-height: 46px; padding: 8px 10px; }
 .infoGrid strong, .fixedInfoGrid strong { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
-.scheduleForm { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; align-items: end; }
-.scheduleForm label { display: grid; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 800; }
-.scheduleForm input, .scheduleForm select { height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; color: var(--text); }
-.wideField { grid-column: span 2; }
+.fixedInfoGrid strong { font-size: 11px; }
+.scheduleForm { grid-column: 1 / -1; display: grid; grid-template-columns: 120px 130px 90px 110px 140px 140px minmax(220px, 1fr) 90px auto; gap: 8px; align-items: end; }
+.scheduleForm label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 800; }
+.scheduleForm input, .scheduleForm select { height: 34px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; color: var(--text); }
+.wideField { grid-column: auto; }
 .scheduleActions { display: flex; justify-content: flex-end; gap: 8px; }
+.scheduleActions button { height: 34px; padding: 0 12px; }
 
 .mapArea { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; min-height: 330px; }
 .mapCanvas, .mockMap { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(90deg, rgba(31,41,55,.08) 1px, transparent 1px), linear-gradient(rgba(31,41,55,.08) 1px, transparent 1px), #dfe8e3; background-size: 48px 48px; }
@@ -104,7 +109,7 @@ tbody tr:hover, .selectedRow { background: #fff5f5; }
 @media (max-width: 1100px) {
   .appShell { grid-template-columns: 1fr; }
   .sideNav { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .mapArea, .detailGrid, .summaryGrid, .kpiGrid, .fixedInfoGrid, .scheduleForm { grid-template-columns: 1fr; }
+  .mapArea, .detailGrid, .summaryGrid, .kpiGrid, .fixedInfoGrid, .scheduleForm, .schedulePanel { grid-template-columns: 1fr; }
   .wideField { grid-column: auto; }
   .scheduleActions { justify-content: stretch; }
   .scheduleActions button { flex: 1; }
