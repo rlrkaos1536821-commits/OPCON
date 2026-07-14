@@ -1,232 +1,389 @@
-import { constructions, operationsAlerts, processStages, summarizeBy, type AlertLevel, type Construction } from "@/data/constructions";
+"use client";
 
-const levelLabel: Record<AlertLevel, string> = {
+import { useMemo, useState } from "react";
+import {
+  constructions as initialConstructions,
+  operationsAlerts,
+  processStages,
+  summarizeBy,
+  type AlertLevel,
+  type Construction,
+  type ProcessStage,
+} from "@/data/constructions";
+
+type ViewMode = "dashboard" | "detail" | "edit" | "report";
+type RegionFilter = "전체 지역" | Construction["region"];
+type ContractorFilter = "전체 협력사" | Construction["contractor"];
+type StageFilter = "전체 공정" | ProcessStage;
+type SortKey = "dueDate" | "progress" | "lengthMeter" | "region" | "contractor" | "stage";
+type SortDirection = "asc" | "desc";
+type SystemMessage = { tone: "success" | "error" | "info"; title: string; description: string };
+
+const alertLabel: Record<AlertLevel, string> = {
   critical: "긴급",
   warning: "주의",
   notice: "확인",
 };
 
-const stageTone: Record<Construction["stage"], string> = {
-  "발주 완료": "stageOrdered",
-  "착공 예정": "stageReady",
-  "배관 공사": "stagePipe",
-  "기층 포장": "stageBase",
-  "표층 포장": "stageSurface",
-  "공사 완료": "stageDone",
-  "준공 완료": "stageClosed",
+const stageClass: Record<ProcessStage, string> = {
+  "발주 완료": "stage stageOrder",
+  "착공 예정": "stage stageReady",
+  "배관 공사": "stage stagePipe",
+  "기층 포장": "stage stageBase",
+  "표층 포장": "stage stageTop",
+  "공사 완료": "stage stageDone",
+  "준공 완료": "stage stageFinal",
 };
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("ko-KR").format(value);
 }
 
-function StatusBadge({ stage }: { stage: Construction["stage"] }) {
-  return <span className={`stageBadge ${stageTone[stage]}`}>{stage}</span>;
+function downloadTextFile(fileName: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildCsv(items: Construction[]) {
+  const header = ["관리번호", "공사명", "지역", "협력사", "공정", "공정률", "연장(m)", "착공일", "완료예정", "이슈"];
+  const rows = items.map((item) => [
+    item.id,
+    item.name,
+    item.region,
+    item.contractor,
+    item.stage,
+    `${item.progress}%`,
+    String(item.lengthMeter),
+    item.startDate,
+    item.dueDate,
+    item.issue,
+  ]);
+  const escapeCell = (cell: string) => `"${cell.replaceAll('"', '""')}"`;
+  return [header, ...rows].map((row) => row.map(escapeCell).join(",")).join("\n");
+}
+
+function buildReport(items: Construction[]) {
+  const delayed = items.filter((item) => item.issueLevel !== "notice");
+  const byRegion = summarizeBy(items, "region");
+  const byContractor = summarizeBy(items, "contractor");
+  return [
+    "TSRM 공사운영현황 보고서",
+    `생성일시: ${new Date().toLocaleString("ko-KR")}`,
+    "",
+    `[요약] 총 ${items.length}건 / 관리 필요 ${delayed.length}건 / 총 연장 ${formatNumber(items.reduce((sum, item) => sum + item.lengthMeter, 0))}m`,
+    "",
+    "[지역별 현황]",
+    ...byRegion.map((item) => `${item.label}: ${item.count}건, 평균 공정률 ${item.averageProgress}%`),
+    "",
+    "[협력사별 현황]",
+    ...byContractor.map((item) => `${item.label}: ${item.count}건, 평균 공정률 ${item.averageProgress}%`),
+    "",
+    "[상세 목록]",
+    ...items.map((item) => `${item.id} | ${item.name} | ${item.stage} | ${item.progress}% | ${item.issue}`),
+  ].join("\n");
 }
 
 function ProgressBar({ value }: { value: number }) {
   return (
-    <div className="progressWrap" aria-label={`공정률 ${value}%`}>
-      <span className="progressTrack">
-        <span className="progressFill" style={{ width: `${value}%` }} />
-      </span>
-      <strong>{value}%</strong>
+    <div className="progressTrack" aria-label={`공정률 ${value}%`}>
+      <span style={{ width: `${value}%` }} />
     </div>
   );
 }
 
-function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
-  return (
-    <section className="metricCard">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{note}</small>
-    </section>
-  );
-}
-
-function SummaryBar({ label, value, total }: { label: string; value: number; total: number }) {
-  const percent = total > 0 ? Math.round((value / total) * 100) : 0;
-
-  return (
-    <div className="summaryBar">
-      <div>
-        <span>{label}</span>
-        <strong>{value}건</strong>
-      </div>
-      <span className="summaryTrack">
-        <span style={{ width: `${percent}%` }} />
-      </span>
-    </div>
-  );
+function AlertBadge({ level }: { level: AlertLevel }) {
+  return <span className={`alertBadge ${level}`}>{alertLabel[level]}</span>;
 }
 
 export default function Home() {
-  const todayStarts = constructions.filter((item) => item.startDate === "2026-07-13").length;
-  const todayDue = constructions.filter((item) => item.dueDate === "2026-07-13").length;
-  const totalLength = constructions.reduce((sum, item) => sum + item.lengthMeter, 0);
-  const byRegion = summarizeBy(constructions, (item) => item.region);
-  const byContractor = summarizeBy(constructions, (item) => item.contractor);
-  const byStage = summarizeBy(constructions, (item) => item.stage);
-  const topContractors = Object.entries(byContractor).sort((a, b) => b[1] - a[1]);
+  const [items, setItems] = useState<Construction[]>(initialConstructions);
+  const [view, setView] = useState<ViewMode>("dashboard");
+  const [selectedId, setSelectedId] = useState(initialConstructions[0]?.id ?? "");
+  const [region, setRegion] = useState<RegionFilter>("전체 지역");
+  const [contractor, setContractor] = useState<ContractorFilter>("전체 협력사");
+  const [stage, setStage] = useState<StageFilter>("전체 공정");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("dueDate");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<SystemMessage>({
+    tone: "info",
+    title: "운영 데이터 연결됨",
+    description: "익산/정읍 공사운영현황 샘플 데이터를 기준으로 표시합니다.",
+  });
+
+  const selected = items.find((item) => item.id === selectedId) ?? items[0];
+  const contractors = useMemo(() => Array.from(new Set(items.map((item) => item.contractor))), [items]);
+
+  const visibleItems = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const filtered = items.filter((item) => {
+      const matchesQuery = !query || [item.id, item.name, item.address, item.issue, item.contractor].some((value) => value.toLowerCase().includes(query));
+      return matchesQuery && (region === "전체 지역" || item.region === region) && (contractor === "전체 협력사" || item.contractor === contractor) && (stage === "전체 공정" || item.stage === stage);
+    });
+    return [...filtered].sort((a, b) => {
+      const left = a[sortKey];
+      const right = b[sortKey];
+      const result = typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), "ko-KR");
+      return sortDirection === "asc" ? result : -result;
+    });
+  }, [contractor, items, region, searchTerm, sortDirection, sortKey, stage]);
+
+  const summary = useMemo(() => {
+    const totalLength = visibleItems.reduce((sum, item) => sum + item.lengthMeter, 0);
+    const averageProgress = visibleItems.length ? Math.round(visibleItems.reduce((sum, item) => sum + item.progress, 0) / visibleItems.length) : 0;
+    return {
+      total: visibleItems.length,
+      totalLength,
+      averageProgress,
+      critical: visibleItems.filter((item) => item.issueLevel === "critical").length,
+      warning: visibleItems.filter((item) => item.issueLevel === "warning").length,
+      done: visibleItems.filter((item) => item.progress >= 100).length,
+    };
+  }, [visibleItems]);
+
+  const setSystemMessage = (next: SystemMessage) => {
+    setMessage(next);
+    window.setTimeout(() => setMessage({ tone: "info", title: "운영 데이터 연결됨", description: "필터와 정렬 결과가 지도와 목록에 반영됩니다." }), 3000);
+  };
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    window.setTimeout(() => {
+      setIsLoading(false);
+      setSystemMessage({ tone: "success", title: "현황 새로고침 완료", description: "공사 목록, KPI, 협력사 현황을 다시 계산했습니다." });
+    }, 650);
+  };
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((value) => (value === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const handleDownloadCsv = () => {
+    if (!visibleItems.length) {
+      setSystemMessage({ tone: "error", title: "다운로드할 공사가 없습니다", description: "필터를 조정한 뒤 다시 시도하세요." });
+      return;
+    }
+    downloadTextFile("tsrm-constructions.csv", `\uFEFF${buildCsv(visibleItems)}`, "text/csv;charset=utf-8");
+    setSystemMessage({ tone: "success", title: "엑셀용 CSV 생성 완료", description: "현재 조회 조건의 공사 목록을 내려받았습니다." });
+  };
+
+  const handleDownloadReport = () => {
+    if (!visibleItems.length) {
+      setSystemMessage({ tone: "error", title: "보고서 대상이 없습니다", description: "검색 조건을 다시 확인하세요." });
+      return;
+    }
+    downloadTextFile("tsrm-report.txt", buildReport(visibleItems), "text/plain;charset=utf-8");
+    setSystemMessage({ tone: "success", title: "보고서 파일 생성 완료", description: "보고서 미리보기 내용을 텍스트 파일로 저장했습니다." });
+  };
+
+  const handleSave = () => {
+    if (!selected) return;
+    setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, progress: Math.min(100, item.progress + 8), issue: "현장 확인 후 진행상태 갱신", issueLevel: item.progress + 8 >= 100 ? "notice" : item.issueLevel } : item)));
+    setView("detail");
+    setSystemMessage({ tone: "success", title: "공사 정보 수정 완료", description: "PoC에서는 버튼 클릭 시 공정률을 샘플로 갱신합니다." });
+  };
+
+  const selectConstruction = (id: string, nextView: ViewMode = "detail") => {
+    setSelectedId(id);
+    setView(nextView);
+  };
 
   return (
     <main className="appShell">
-      <aside className="sideNav" aria-label="TSRM 메뉴">
-        <div className="brandBlock">
-          <strong>TSRM</strong>
-          <span>공사관리</span>
-        </div>
-        <nav>
-          <span>종합현황</span>
-          <strong>공사운영현황</strong>
-          <span>협력사 일정</span>
-          <span>보고자료</span>
-        </nav>
+      <aside className="sideNav">
+        <div className="brand">TSRM</div>
+        <p>공사운영현황</p>
+        <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>대시보드</button>
+        <button className={view === "detail" ? "active" : ""} onClick={() => setView("detail")}>상세현황</button>
+        <button className={view === "report" ? "active" : ""} onClick={() => setView("report")}>보고자료</button>
       </aside>
 
       <section className="workspace">
         <header className="topBar">
           <div>
-            <p>공사관리담당자 업무화면</p>
-            <h1>공사운영현황</h1>
+            <span className="eyebrow">삼천리 도시가스 공사 운영 PoC</span>
+            <h1>공사운영현황 통합 모니터링</h1>
           </div>
-          <div className="filterArea" aria-label="검색 및 필터">
-            <input aria-label="공사 검색" placeholder="공사번호, 공사명, 협력사 검색" />
-            <select aria-label="지역 필터" defaultValue="전체 지역">
-              <option>전체 지역</option>
-              <option>익산시</option>
-              <option>정읍시</option>
-            </select>
-            <select aria-label="공정 필터" defaultValue="전체 공정">
-              <option>전체 공정</option>
-              {processStages.map((stage) => (
-                <option key={stage}>{stage}</option>
-              ))}
-            </select>
+          <div className="actions">
+            <button onClick={handleRefresh}>새로고침</button>
+            <button onClick={() => setView("report")}>보고자료 생성</button>
+            <button className="primary" onClick={handleDownloadCsv}>엑셀 다운로드</button>
           </div>
         </header>
 
-        <section className="metricGrid" aria-label="오늘 핵심 지표">
-          <MetricCard label="오늘 예정 공사" value={`${constructions.length}건`} note={`총 시공연장 ${formatNumber(totalLength)}m`} />
-          <MetricCard label="오늘 착공 예정" value={`${todayStarts}건`} note="착공 전 계획 확인 필요" />
-          <MetricCard label="오늘 완료 예정" value={`${todayDue}건`} note="완료 전 공정률 점검" />
+        <section className={`systemMessage ${message.tone}`}>
+          <strong>{message.title}</strong>
+          <span>{message.description}</span>
         </section>
 
-        <section className="alertSection" aria-label="운영 알림">
-          <div className="sectionTitle">
-            <div>
-              <p>운영 알림</p>
-              <h2>오늘 먼저 확인할 업무</h2>
-            </div>
-            <span>우선순위 기준</span>
-          </div>
-          <div className="alertGrid">
-            {operationsAlerts.map((alert) => (
-              <article className={`alertCard ${alert.level}`} key={alert.title}>
-                <div>
-                  <span>{levelLabel[alert.level]}</span>
-                  <strong>{alert.title}</strong>
-                </div>
-                <b>{alert.count}건</b>
-                <p>{alert.description}</p>
-              </article>
-            ))}
-          </div>
+        <section className="filters" aria-label="공사 검색 조건">
+          <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="공사명, 주소, 협력사, 이슈 검색" />
+          <select value={region} onChange={(event) => setRegion(event.target.value as RegionFilter)}>
+            <option>전체 지역</option>
+            <option>익산시</option>
+            <option>정읍시</option>
+          </select>
+          <select value={contractor} onChange={(event) => setContractor(event.target.value as ContractorFilter)}>
+            <option>전체 협력사</option>
+            {contractors.map((name) => <option key={name}>{name}</option>)}
+          </select>
+          <select value={stage} onChange={(event) => setStage(event.target.value as StageFilter)}>
+            <option>전체 공정</option>
+            {processStages.map((name) => <option key={name}>{name}</option>)}
+          </select>
         </section>
 
-        <section className="quickActions" aria-label="Quick Action">
-          <button type="button">보고자료 생성</button>
-          <button type="button">엑셀 다운로드</button>
-          <button type="button">공사 수정</button>
-        </section>
+        {view === "dashboard" && (
+          <>
+            <section className="kpiGrid">
+              <article><span>조회 공사</span><strong>{summary.total}건</strong><small>익산/정읍 대상</small></article>
+              <article><span>총 연장</span><strong>{formatNumber(summary.totalLength)}m</strong><small>필터 기준 합계</small></article>
+              <article><span>평균 공정률</span><strong>{summary.averageProgress}%</strong><small>현장 진행률</small></article>
+              <article><span>관리 필요</span><strong>{summary.critical + summary.warning}건</strong><small>긴급 {summary.critical} / 주의 {summary.warning}</small></article>
+            </section>
 
-        <section className="dashboardGrid" aria-label="현황 분석">
-          <article className="panelCard">
-            <div className="sectionTitle compact">
-              <h2>지역별 현황</h2>
-              <span>익산시 / 정읍시</span>
-            </div>
-            {Object.entries(byRegion).map(([region, count]) => (
-              <SummaryBar key={region} label={region} value={count} total={constructions.length} />
-            ))}
-          </article>
-
-          <article className="panelCard">
-            <div className="sectionTitle compact">
-              <h2>협력사별 현황</h2>
-              <span>시공사 기준</span>
-            </div>
-            <div className="contractorGrid">
-              {topContractors.map(([contractor, count]) => (
-                <div key={contractor}>
-                  <span>{contractor}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="panelCard stagePanel">
-            <div className="sectionTitle compact">
-              <h2>공정단계별 현황</h2>
-              <span>표준 공정 순서</span>
-            </div>
-            <div className="stageFlow">
-              {processStages.map((stage) => (
-                <div key={stage}>
-                  <span>{stage}</span>
-                  <strong>{byStage[stage] ?? 0}건</strong>
-                </div>
-              ))}
-            </div>
-          </article>
-        </section>
-
-        <section className="tablePanel" aria-label="오늘 공사 리스트">
-          <div className="sectionTitle">
-            <div>
-              <p>오늘 공사 리스트</p>
-              <h2>공사별 진행 현황</h2>
-            </div>
-            <span>{constructions.length}건</span>
-          </div>
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>공사번호</th>
-                  <th>공사명</th>
-                  <th>지역</th>
-                  <th>시공연장(m)</th>
-                  <th>협력사</th>
-                  <th>공정단계</th>
-                  <th>공정률</th>
-                  <th>착공일</th>
-                  <th>완료예정일</th>
-                  <th>특이사항</th>
-                </tr>
-              </thead>
-              <tbody>
-                {constructions.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.id}</td>
-                    <td className="nameCell">{item.name}</td>
-                    <td>{item.region}</td>
-                    <td>{formatNumber(item.lengthMeter)}</td>
-                    <td>{item.contractor}</td>
-                    <td><StatusBadge stage={item.stage} /></td>
-                    <td><ProgressBar value={item.progress} /></td>
-                    <td>{item.startDate}</td>
-                    <td>{item.dueDate}</td>
-                    <td><span className={`issueBadge ${item.issueLevel}`}>{item.issue}</span></td>
-                  </tr>
+            <section className="mapArea">
+              <div className="mapCanvas">
+                {visibleItems.map((item, index) => (
+                  <button key={item.id} className={`mapPin ${item.issueLevel}`} style={{ left: `${18 + (index % 5) * 16}%`, top: `${22 + Math.floor(index / 5) * 28}%` }} onClick={() => selectConstruction(item.id)}>
+                    <span>{item.region}</span>
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <aside className="alertPanel">
+                <h2>운영 알림</h2>
+                {operationsAlerts.map((alert) => <p key={alert.id}><AlertBadge level={alert.level} /> {alert.message}</p>)}
+              </aside>
+            </section>
+
+            <section className="summaryGrid">
+              <Chart title="지역별 현황" rows={summarizeBy(visibleItems, "region")} onPick={(label) => setRegion(label as RegionFilter)} />
+              <Chart title="협력사별 현황" rows={summarizeBy(visibleItems, "contractor")} onPick={(label) => setContractor(label as ContractorFilter)} />
+              <Chart title="공정별 현황" rows={summarizeBy(visibleItems, "stage")} onPick={(label) => setStage(label as StageFilter)} />
+            </section>
+          </>
+        )}
+
+        {view === "detail" && selected && <Detail item={selected} onEdit={() => setView("edit")} onReport={() => setView("report")} />}
+        {view === "edit" && selected && <Edit item={selected} onCancel={() => setView("detail")} onSave={handleSave} />}
+        {view === "report" && <Report items={visibleItems} onDownload={handleDownloadReport} />}
+
+        <section className="tableSection">
+          <div className="sectionTitle">
+            <h2>공사 목록</h2>
+            <span>{visibleItems.length}건</span>
           </div>
+          {isLoading ? <div className="emptyState">데이터를 새로 불러오는 중입니다.</div> : visibleItems.length ? (
+            <div className="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>공사명</th>
+                    <th><button onClick={() => handleSort("region")}>지역</button></th>
+                    <th><button onClick={() => handleSort("contractor")}>협력사</button></th>
+                    <th><button onClick={() => handleSort("stage")}>공정</button></th>
+                    <th><button onClick={() => handleSort("progress")}>공정률</button></th>
+                    <th><button onClick={() => handleSort("dueDate")}>완료예정</button></th>
+                    <th>이슈</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.map((item) => (
+                    <tr key={item.id} onClick={() => selectConstruction(item.id)}>
+                      <td><strong>{item.name}</strong><small>{item.address}</small></td>
+                      <td>{item.region}</td>
+                      <td>{item.contractor}</td>
+                      <td><span className={stageClass[item.stage]}>{item.stage}</span></td>
+                      <td><ProgressBar value={item.progress} /> {item.progress}%</td>
+                      <td>{item.dueDate}</td>
+                      <td><AlertBadge level={item.issueLevel} /> {item.issue}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div className="emptyState">조건에 맞는 공사가 없습니다. 검색어나 필터를 바꿔보세요.</div>}
         </section>
       </section>
     </main>
+  );
+}
+
+function Chart({ title, rows, onPick }: { title: string; rows: ReturnType<typeof summarizeBy>; onPick: (label: string) => void }) {
+  return (
+    <article className="chartCard">
+      <h2>{title}</h2>
+      {rows.map((row) => (
+        <button key={row.label} onClick={() => onPick(row.label)}>
+          <span>{row.label}</span>
+          <strong>{row.count}건</strong>
+          <ProgressBar value={row.averageProgress} />
+        </button>
+      ))}
+    </article>
+  );
+}
+
+function Detail({ item, onEdit, onReport }: { item: Construction; onEdit: () => void; onReport: () => void }) {
+  return (
+    <section className="detailGrid">
+      <article className="detailMain">
+        <div className="sectionTitle"><h2>{item.name}</h2><span>{item.id}</span></div>
+        <p className="muted">{item.address}</p>
+        <div className="mockMap"><span>{item.mapLabel}</span><b>{item.region}</b></div>
+        <div className="infoGrid">
+          <p><strong>계획기간</strong>{item.plan.period}</p>
+          <p><strong>작업내용</strong>{item.plan.content}</p>
+          <p><strong>투입인력</strong>{item.plan.workers}</p>
+          <p><strong>장비</strong>{item.plan.equipment}</p>
+        </div>
+      </article>
+      <aside className="rightPanel">
+        <h2>금일 작업</h2>
+        <p><strong>{item.todayWork.work}</strong></p>
+        <p>{item.todayWork.status}</p>
+        <p className="muted">{item.todayWork.note}</p>
+        <ProgressBar value={item.progress} />
+        <div className="buttonRow"><button onClick={onEdit}>공사 수정</button><button onClick={onReport}>보고자료</button></div>
+      </aside>
+      <article className="photoStrip">
+        {item.photos.map((photo) => <div key={photo.label} className={`photo ${photo.tone}`}><strong>{photo.label}</strong><span>{photo.caption}</span></div>)}
+      </article>
+    </section>
+  );
+}
+
+function Edit({ item, onCancel, onSave }: { item: Construction; onCancel: () => void; onSave: () => void }) {
+  return (
+    <section className="editPanel">
+      <div className="sectionTitle"><h2>공사 정보 수정</h2><span>{item.id}</span></div>
+      <label>공정<input readOnly value={item.stage} /></label>
+      <label>공정률<input readOnly value={`${item.progress}% -> 저장 시 +8% 샘플 반영`} /></label>
+      <label>관리 이슈<textarea readOnly value={item.issue} /></label>
+      <div className="buttonRow"><button onClick={onCancel}>취소</button><button className="primary" onClick={onSave}>저장</button></div>
+    </section>
+  );
+}
+
+function Report({ items, onDownload }: { items: Construction[]; onDownload: () => void }) {
+  const reportText = buildReport(items);
+  return (
+    <section className="reportPanel">
+      <div className="sectionTitle"><h2>보고자료 미리보기</h2><button className="primary" onClick={onDownload}>PDF 텍스트 저장</button></div>
+      <pre>{reportText}</pre>
+    </section>
   );
 }
