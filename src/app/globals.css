@@ -30,8 +30,8 @@ button { cursor: pointer; }
 h1, h2 { margin: 0; letter-spacing: 0; }
 h1 { font-size: 30px; }
 h2 { font-size: 18px; }
-.actions button, .filters input, .filters select, .buttonRow button, .sectionTitle button, .rightPanel button, .scheduleActions button { border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 10px 13px; border-radius: 8px; }
-.primary, .scheduleActions button[type="submit"] { background: var(--red) !important; border-color: var(--red) !important; color: #fff !important; }
+.actions button, .filters input, .filters select, .buttonRow button, .sectionTitle button, .rightPanel button { border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 10px 13px; border-radius: 8px; }
+.primary { background: var(--red) !important; border-color: var(--red) !important; color: #fff !important; }
 .filters { flex-wrap: wrap; }
 .filters input { min-width: 320px; flex: 1; }
 .filters select { min-width: 140px; }
@@ -42,26 +42,10 @@ h2 { font-size: 18px; }
 .systemMessage span, .muted, small { color: var(--muted); }
 
 .kpiGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.kpiGrid article, .chartCard, .detailMain, .rightPanel, .schedulePanel, .tableSection, .reportPanel, .alertPanel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.kpiGrid article, .chartCard, .detailMain, .rightPanel, .tableSection, .reportPanel, .alertPanel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
 .kpiGrid article { padding: 18px; display: grid; gap: 8px; }
 .kpiGrid span { color: var(--muted); }
 .kpiGrid strong { font-size: 28px; }
-
-.schedulePanel { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 10px 14px; padding: 12px 14px; }
-.schedulePanel .sectionTitle { align-items: center; margin-bottom: 0; }
-.schedulePanel .sectionTitle h2 { font-size: 16px; }
-.fixedInfoGrid { display: grid; grid-template-columns: 130px minmax(220px, 1fr) 110px; gap: 8px; }
-.infoGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.infoGrid p, .fixedInfoGrid p, .rightPanel p { margin: 0; padding: 12px; background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; }
-.fixedInfoGrid p { min-height: 46px; padding: 8px 10px; }
-.infoGrid strong, .fixedInfoGrid strong { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
-.fixedInfoGrid strong { font-size: 11px; }
-.scheduleForm { grid-column: 1 / -1; display: grid; grid-template-columns: 120px 130px 90px 110px 140px 140px minmax(220px, 1fr) 90px auto; gap: 8px; align-items: end; }
-.scheduleForm label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 800; }
-.scheduleForm input, .scheduleForm select { height: 34px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; color: var(--text); }
-.wideField { grid-column: auto; }
-.scheduleActions { display: flex; justify-content: flex-end; gap: 8px; }
-.scheduleActions button { height: 34px; padding: 0 12px; }
 
 .mapArea { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; min-height: 330px; }
 .mapCanvas, .mockMap { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(90deg, rgba(31,41,55,.08) 1px, transparent 1px), linear-gradient(rgba(31,41,55,.08) 1px, transparent 1px), #dfe8e3; background-size: 48px 48px; }
@@ -87,11 +71,14 @@ h2 { font-size: 18px; }
 .detailMain, .rightPanel, .reportPanel, .tableSection { padding: 18px; }
 .mockMap { height: 240px; margin: 14px 0; display: flex; align-items: center; justify-content: center; }
 .mockMap span, .mockMap b { position: relative; z-index: 1; background: rgba(255,255,255,.88); border-radius: 8px; padding: 10px 12px; margin: 4px; }
+.infoGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.infoGrid p, .rightPanel p { margin: 0; padding: 12px; background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; }
+.infoGrid strong { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
 .rightPanel { display: grid; align-content: start; gap: 12px; }
 .reportPanel pre { white-space: pre-wrap; background: #0f172a; color: #e2e8f0; padding: 18px; border-radius: 8px; line-height: 1.6; overflow: auto; }
 
 .tableWrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
-table { width: 100%; border-collapse: collapse; background: var(--panel); min-width: 1180px; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); min-width: 1240px; }
 th, td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 th { background: #f8fafc; color: var(--muted); font-size: 13px; }
 th button { border: 0; background: transparent; color: inherit; padding: 0; font-weight: 700; }
@@ -100,6 +87,11 @@ tbody tr { cursor: pointer; }
 tbody tr:hover, .selectedRow { background: #fff5f5; }
 .selectedRow { box-shadow: inset 4px 0 0 var(--red); }
 .rowActionButton { min-width: 52px; border: 1px solid var(--red); border-radius: 6px; background: #fff; color: var(--red); padding: 7px 9px; font-weight: 800; }
+.primaryRowAction { background: var(--red); color: #fff; }
+.rowActionGroup { display: flex; gap: 6px; }
+.editingRow td { background: #fff7f7; }
+.editingRow input, .editingRow select { width: 100%; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); font-size: 12px; font-weight: 700; }
+.inlineIssueEdit { display: grid; grid-template-columns: minmax(150px, 1fr) 72px; gap: 6px; }
 .stage { display: inline-flex; padding: 5px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; color: #263142; background: #e8edf4; }
 .stageReady, .stagePipe { background: #dbeafe; color: #1d4ed8; }
 .stageBase, .stageTop { background: #fef3c7; color: #92400e; }
@@ -109,10 +101,6 @@ tbody tr:hover, .selectedRow { background: #fff5f5; }
 @media (max-width: 1100px) {
   .appShell { grid-template-columns: 1fr; }
   .sideNav { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .mapArea, .detailGrid, .summaryGrid, .kpiGrid, .fixedInfoGrid, .scheduleForm, .schedulePanel { grid-template-columns: 1fr; }
-  .wideField { grid-column: auto; }
-  .scheduleActions { justify-content: stretch; }
-  .scheduleActions button { flex: 1; }
-  .infoGrid { grid-template-columns: 1fr; }
+  .mapArea, .detailGrid, .summaryGrid, .kpiGrid, .infoGrid { grid-template-columns: 1fr; }
   .topBar { align-items: flex-start; flex-direction: column; }
 }
