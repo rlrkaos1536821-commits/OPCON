@@ -35,6 +35,9 @@ h2 { font-size: 18px; }
 .filters { flex-wrap: wrap; }
 .filters input { min-width: 320px; flex: 1; }
 .filters select { min-width: 140px; }
+.listFilterBar { display: grid; grid-template-columns: minmax(280px, 1fr) 120px 150px 150px auto; gap: 8px; margin-bottom: 12px; }
+.listFilterBar input, .listFilterBar select, .listFilterBar button { min-width: 0; height: 36px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 10px; border-radius: 8px; font-size: 13px; }
+.listFilterBar button { color: var(--muted); font-weight: 800; white-space: nowrap; }
 
 .systemMessage { border: 1px solid var(--line); background: var(--panel); border-left: 5px solid var(--blue); border-radius: 8px; padding: 13px 16px; display: flex; gap: 12px; }
 .systemMessage.success { border-left-color: var(--green); }
@@ -103,4 +106,5 @@ tbody tr:hover, .selectedRow { background: #fff5f5; }
   .sideNav { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
   .mapArea, .detailGrid, .summaryGrid, .kpiGrid, .infoGrid { grid-template-columns: 1fr; }
   .topBar { align-items: flex-start; flex-direction: column; }
+  .listFilterBar { grid-template-columns: 1fr; }
 }
