@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "TSRM 공사운영현황 PoC",
-  description: "공사관리담당자를 위한 공사운영현황 대시보드 PoC",
+  description: "공사관리담당자를 위한 공사운영현황 Dashboard PoC",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
