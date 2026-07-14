@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import {
   constructions as initialConstructions,
-  operationsAlerts,
   processStages,
   summarizeBy,
   type AlertLevel,
@@ -77,7 +76,7 @@ function buildReport(items: Construction[]) {
     "TSRM 공사운영현황 보고서",
     `생성일시: ${new Date().toLocaleString("ko-KR")}`,
     "",
-    `[요약] 총 ${items.length}건 / 관리 필요 ${delayed.length}건 / 총 연장 ${formatNumber(items.reduce((sum, item) => sum + item.lengthMeter, 0))}m`,
+    `[요약] 전체 발주 ${items.length}건 / 관리 필요 ${delayed.length}건 / 총 연장 ${formatNumber(items.reduce((sum, item) => sum + item.lengthMeter, 0))}m`,
     "",
     "[지역별 현황]",
     ...byRegion.map((item) => `${item.label}: ${item.count}건, 평균 공정률 ${item.averageProgress}%`),
@@ -138,14 +137,14 @@ export default function Home() {
 
   const summary = useMemo(() => {
     const totalLength = visibleItems.reduce((sum, item) => sum + item.lengthMeter, 0);
-    const averageProgress = visibleItems.length ? Math.round(visibleItems.reduce((sum, item) => sum + item.progress, 0) / visibleItems.length) : 0;
     return {
       total: visibleItems.length,
       totalLength,
-      averageProgress,
+      inProgress: visibleItems.filter((item) => !["공사 완료", "준공 완료"].includes(item.stage)).length,
+      constructionDone: visibleItems.filter((item) => item.stage === "공사 완료").length,
+      closed: visibleItems.filter((item) => item.stage === "준공 완료").length,
       critical: visibleItems.filter((item) => item.issueLevel === "critical").length,
       warning: visibleItems.filter((item) => item.issueLevel === "warning").length,
-      done: visibleItems.filter((item) => item.progress >= 100).length,
     };
   }, [visibleItems]);
 
@@ -158,7 +157,7 @@ export default function Home() {
     setIsLoading(true);
     window.setTimeout(() => {
       setIsLoading(false);
-      setSystemMessage({ tone: "success", title: "현황 새로고침 완료", description: "공사 목록, KPI, 협력사 현황을 다시 계산했습니다." });
+      setSystemMessage({ tone: "success", title: "현황 새로고침 완료", description: "전체 발주 현황과 공정별 KPI를 다시 계산했습니다." });
     }, 650);
   };
 
@@ -249,10 +248,10 @@ export default function Home() {
         {view === "dashboard" && (
           <>
             <section className="kpiGrid">
-              <article><span>조회 공사</span><strong>{summary.total}건</strong><small>익산/정읍 대상</small></article>
-              <article><span>총 연장</span><strong>{formatNumber(summary.totalLength)}m</strong><small>필터 기준 합계</small></article>
-              <article><span>평균 공정률</span><strong>{summary.averageProgress}%</strong><small>현장 진행률</small></article>
-              <article><span>관리 필요</span><strong>{summary.critical + summary.warning}건</strong><small>긴급 {summary.critical} / 주의 {summary.warning}</small></article>
+              <article><span>전체 발주 건</span><strong>{summary.total}건</strong><small>총 시공연장 {formatNumber(summary.totalLength)}m</small></article>
+              <article><span>진행중 공사</span><strong>{summary.inProgress}건</strong><small>착공 예정부터 표층 포장까지</small></article>
+              <article><span>공사 완료</span><strong>{summary.constructionDone}건</strong><small>현장 공정 완료 상태</small></article>
+              <article><span>준공 완료</span><strong>{summary.closed}건</strong><small>준공 처리까지 완료</small></article>
             </section>
 
             <section className="mapArea">
@@ -264,8 +263,11 @@ export default function Home() {
                 ))}
               </div>
               <aside className="alertPanel">
-                <h2>운영 알림</h2>
-                {operationsAlerts.map((alert) => <p key={alert.id}><AlertBadge level={alert.level} /> {alert.message}</p>)}
+                <h2>발주 진행 요약</h2>
+                <p><AlertBadge level="warning" /> 진행중 {summary.inProgress}건</p>
+                <p><AlertBadge level="notice" /> 공사 완료 {summary.constructionDone}건</p>
+                <p><AlertBadge level="notice" /> 준공 완료 {summary.closed}건</p>
+                <p><AlertBadge level="critical" /> 관리 필요 {summary.critical + summary.warning}건</p>
               </aside>
             </section>
 
@@ -352,7 +354,7 @@ function Detail({ item, onEdit, onReport }: { item: Construction; onEdit: () => 
         </div>
       </article>
       <aside className="rightPanel">
-        <h2>금일 작업</h2>
+        <h2>공사 진행 메모</h2>
         <p><strong>{item.todayWork.work}</strong></p>
         <p>{item.todayWork.status}</p>
         <p className="muted">{item.todayWork.note}</p>
