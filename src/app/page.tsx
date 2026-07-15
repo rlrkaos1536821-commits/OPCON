@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   constructions as initialConstructions,
   operationsAlerts,
@@ -59,6 +59,13 @@ type DailyPlanKpis = {
   working: number;
   done: number;
 };
+type StoredWorkspace = {
+  items: Construction[];
+  schedulesById: Record<string, ScheduleItem[]>;
+  dailyPlanRows: DailyPlanRow[];
+  dailyPlanRegionFilter: DailyPlanRegionFilter;
+  lastSyncedAt: string;
+};
 
 const scheduleSteps: ScheduleStep[] = [
   "인허가",
@@ -83,6 +90,7 @@ const scheduleStepTone: Record<ScheduleStep, string> = {
 };
 
 const todayText = "2026-07-14";
+const workspaceStorageKey = "tsrm-opcon-workspace-v1";
 const dailyPlanWorkOptions: DailyPlanWork[] = ["배관 공사", "기층 포장", "표층 포장"];
 
 const stageTone: Record<Construction["stage"], string> = {
@@ -218,6 +226,48 @@ function buildDefaultSchedule(construction: Construction): ScheduleItem[] {
     status: statuses[index],
     memo: `${step} 일정 확인`,
   }));
+}
+
+function createDefaultSchedules(items: Construction[]) {
+  return Object.fromEntries(items.map((construction) => [construction.id, buildDefaultSchedule(construction)]));
+}
+
+function createDefaultDailyPlanRows(items: Construction[]) {
+  return getItemsOnDate(items, todayText).map((item, index) => buildDailyPlanRow(item, index));
+}
+
+function createInitialWorkspace(): StoredWorkspace {
+  const fallback: StoredWorkspace = {
+    items: initialConstructions,
+    schedulesById: createDefaultSchedules(initialConstructions),
+    dailyPlanRows: createDefaultDailyPlanRows(initialConstructions),
+    dailyPlanRegionFilter: "전체",
+    lastSyncedAt: "2026-07-13 08:30",
+  };
+
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const saved = window.localStorage.getItem(workspaceStorageKey);
+    if (!saved) return fallback;
+
+    const parsed = JSON.parse(saved) as Partial<StoredWorkspace>;
+    const items = Array.isArray(parsed.items) && parsed.items.length > 0 ? parsed.items : fallback.items;
+    const schedulesById =
+      parsed.schedulesById && typeof parsed.schedulesById === "object"
+        ? { ...createDefaultSchedules(items), ...parsed.schedulesById }
+        : createDefaultSchedules(items);
+
+    return {
+      items,
+      schedulesById,
+      dailyPlanRows: Array.isArray(parsed.dailyPlanRows) ? parsed.dailyPlanRows : createDefaultDailyPlanRows(items),
+      dailyPlanRegionFilter: typeof parsed.dailyPlanRegionFilter === "string" ? parsed.dailyPlanRegionFilter : "전체",
+      lastSyncedAt: typeof parsed.lastSyncedAt === "string" ? parsed.lastSyncedAt : fallback.lastSyncedAt,
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 function StatusBadge({ stage }: { stage: Construction["stage"] }) {
@@ -532,25 +582,34 @@ function AppShell({
 }
 
 export default function Home() {
-  const [items, setItems] = useState<Construction[]>(initialConstructions);
-  const [selectedId, setSelectedId] = useState(initialConstructions[0].id);
-  const [schedulesById, setSchedulesById] = useState<Record<string, ScheduleItem[]>>(() =>
-    Object.fromEntries(initialConstructions.map((construction) => [construction.id, buildDefaultSchedule(construction)])),
-  );
-  const [dailyPlanRows, setDailyPlanRows] = useState<DailyPlanRow[]>(() =>
-    getItemsOnDate(initialConstructions, todayText).map((item, index) => buildDailyPlanRow(item, index)),
-  );
-  const [dailyPlanRegionFilter, setDailyPlanRegionFilter] = useState<DailyPlanRegionFilter>("전체");
+  const [initialWorkspace] = useState<StoredWorkspace>(() => createInitialWorkspace());
+  const [items, setItems] = useState<Construction[]>(initialWorkspace.items);
+  const [selectedId, setSelectedId] = useState(initialWorkspace.items[0]?.id ?? initialConstructions[0].id);
+  const [schedulesById, setSchedulesById] = useState<Record<string, ScheduleItem[]>>(initialWorkspace.schedulesById);
+  const [dailyPlanRows, setDailyPlanRows] = useState<DailyPlanRow[]>(initialWorkspace.dailyPlanRows);
+  const [dailyPlanRegionFilter, setDailyPlanRegionFilter] = useState<DailyPlanRegionFilter>(initialWorkspace.dailyPlanRegionFilter);
   const [mode, setMode] = useState<ViewMode>("dashboard");
   const [isLoading, setIsLoading] = useState(false);
   const [systemMessage, setSystemMessage] = useState<SystemMessage | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = useState("2026-07-13 08:30");
+  const [lastSyncedAt, setLastSyncedAt] = useState(initialWorkspace.lastSyncedAt);
   const [searchTerm, setSearchTerm] = useState("");
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("전체 지역");
   const [contractorFilter, setContractorFilter] = useState<ContractorFilter>("전체 협력사");
   const [stageFilter, setStageFilter] = useState<StageFilter>("전체 공정");
   const [sortKey, setSortKey] = useState<SortKey>("dueDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  useEffect(() => {
+    const workspace: StoredWorkspace = {
+      items,
+      schedulesById,
+      dailyPlanRows,
+      dailyPlanRegionFilter,
+      lastSyncedAt,
+    };
+
+    window.localStorage.setItem(workspaceStorageKey, JSON.stringify(workspace));
+  }, [dailyPlanRegionFilter, dailyPlanRows, items, lastSyncedAt, schedulesById]);
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
   const selectedSchedule = schedulesById[selected.id] ?? buildDefaultSchedule(selected);
@@ -818,6 +877,29 @@ export default function Home() {
     }, 650);
   }
 
+  function resetWorkspaceData() {
+    const defaultItems = initialConstructions;
+
+    window.localStorage.removeItem(workspaceStorageKey);
+    setItems(defaultItems);
+    setSelectedId(defaultItems[0].id);
+    setSchedulesById(createDefaultSchedules(defaultItems));
+    setDailyPlanRows(createDefaultDailyPlanRows(defaultItems));
+    setDailyPlanRegionFilter("전체");
+    setLastSyncedAt("2026-07-13 08:30");
+    setSearchTerm("");
+    setRegionFilter("전체 지역");
+    setContractorFilter("전체 협력사");
+    setStageFilter("전체 공정");
+    setSortKey("dueDate");
+    setSortDirection("asc");
+    setSystemMessage({
+      tone: "info",
+      title: "샘플 데이터로 초기화했습니다",
+      description: "수정한 공사, 상세 일정, 일일공사계획을 초기 상태로 되돌렸습니다.",
+    });
+  }
+
   if (mode === "detail") {
     return (
       <AppShell mode={mode}>
@@ -870,9 +952,14 @@ export default function Home() {
           <h1>TSRM 공사운영현황</h1>
           <small>최종 갱신 {lastSyncedAt}</small>
         </div>
-        <button className="resetButton" type="button" onClick={refreshDashboard} disabled={isLoading}>
-          {isLoading ? "갱신 중" : "새로고침"}
-        </button>
+        <div className="topActions">
+          <button className="resetButton" type="button" onClick={resetWorkspaceData}>
+            샘플 초기화
+          </button>
+          <button className="resetButton" type="button" onClick={refreshDashboard} disabled={isLoading}>
+            {isLoading ? "갱신 중" : "새로고침"}
+          </button>
+        </div>
       </header>
 
       {systemMessage ? <SystemBanner message={systemMessage} onClose={() => setSystemMessage(null)} /> : null}
